@@ -109,36 +109,7 @@ class Decoder(nn.Module):
         z, _ = self.lstm2(z)
         return z  # Shape: (batch_size, 360, output_size)
 
-# Define the Generator for GAN
-class Generator(nn.Module):
-    def __init__(self, latent_dim, output_size):
-        super(Generator, self).__init__()
-        self.fc = nn.Linear(latent_dim, 64)  # Increase hidden size for better learning
-        self.lstm1 = nn.LSTM(64, 32, batch_first=True)
-        self.lstm2 = nn.LSTM(32, output_size, batch_first=True)        
-        
 
-    def forward(self, z):
-        z = self.fc(z).unsqueeze(1).repeat(1, 360, 1)  # Repeat for sequence length
-        z, _ = self.lstm1(z)
-        z, _ = self.lstm2(z)
-        return z  # Shape: (batch_size, 360, output_size)
-
-# Define the Discriminator for GAN
-class Discriminator(nn.Module):
-    def __init__(self, input_size):
-        super(Discriminator, self).__init__()
-        self.lstm = nn.LSTM(input_size, 32)
-        self.fc1 = nn.Linear(32, 16)
-        self.fc2 = nn.Linear(16, 1)
-        
-
-    def forward(self, x):
-        x, _ = self.lstm(x)
-        x = torch.relu(x[:, -1])  # Use the last output
-        x = torch.sigmoid(self.fc2(torch.relu(self.fc1(x))))
-        return x
-   
 
 # Hyperparameters
 input_size = 2   # (x,y) coordinates
@@ -149,70 +120,21 @@ output_size = input_size
 # Initialize models and optimizers
 encoder = Encoder(input_size=2, latent_dim=16)
 decoder = Decoder(latent_dim=16, output_size=2)
-generator = Generator(latent_dim=16, output_size=2)
-discriminator = Discriminator(input_size=2)
 
-optimizer_encoder = optim.SGD(encoder.parameters(), lr=learning_rate)
-optimizer_decoder = optim.SGD(decoder.parameters(), lr=learning_rate)
-optimizer_generator = optim.Adam(generator.parameters(), lr=0.001)
-optimizer_discriminator = optim.Adam(discriminator.parameters(), lr=0.00001)
+optimizer_encoder = optim.Adam(encoder.parameters(), lr=0.00001)
+optimizer_decoder = optim.Adam(decoder.parameters(), lr=0.00001)
 
 # Loss functions
 criterion_reconstruction = nn.MSELoss()
 criterion_gan = nn.BCELoss()
-d_losses = []
-g_losses = []
 re_losses = []
-total_losses = []
 # Training loop
 for epoch in range(num_epochs):
     batch_count = 0
     for real_signals in dataloader:
         real_signals = real_signals[0]  # Get the batch of real signals
 
-        # ============================
-        # Train the GAN Discriminator
-        # ============================
-
-        # Generate random latent vectors
-        batch_size_current = real_signals.size(0)
-        z_random = torch.randn(batch_size_current, 16)  # Random noise for generator
-
-        # Generate fake signals
-        fake_signals = generator(z_random)
-
-        # Labels for real and fake signals
-        real_labels = torch.ones(batch_size_current, 1)
-        fake_labels = torch.zeros(batch_size_current, 1)
-
-        # Discriminator loss on real and fake signals
-        output_real = discriminator(real_signals)
-        output_fake = discriminator(fake_signals.detach())
-
-        loss_real = criterion_gan(output_real, real_labels)
-        loss_fake = criterion_gan(output_fake, fake_labels)
-        
-        loss_discriminator_gan = (loss_real + loss_fake)/2.0
-        
-        optimizer_discriminator.zero_grad()
-        loss_discriminator_gan.backward()
-        optimizer_discriminator.step()
-
-        # ============================
-        # Train the GAN Generator
-        # ============================
-                
-        # Generate fake signals again (for generator's training)
-        fake_signals = generator(z_random)
-
-        # Generator loss (we want the discriminator to think these are real)
-        output_fake_for_generator = discriminator(fake_signals)
-        loss_generator_gan = criterion_gan(output_fake_for_generator, real_labels)
-        
-        optimizer_generator.zero_grad()
-        loss_generator_gan.backward()
-        optimizer_generator.step()
-        
+    
         # ============================
         # Train the VAE Encoder
         # ============================
@@ -232,30 +154,16 @@ for epoch in range(num_epochs):
         
         loss_reconstruction.backward()
         optimizer_decoder.step()
-
-        # Total generator loss (combine GAN and reconstruction losses)
-        total_loss_generator_decoder = (loss_generator_gan + loss_reconstruction)/2.0
         
-
         if batch_count % 15 == 0:  # Print every 100 epochs
             print(f'Epoch [{epoch}/{num_epochs}], '
-                  f'Discriminator Loss: {loss_discriminator_gan.item():.4f}, '
-                  f'Generator Loss: {loss_generator_gan.item():.4f} ',
-                  f'Reconstruction Loss: {loss_reconstruction.item():.4f} ',                  
-                  f'Total Loss: {total_loss_generator_decoder.item():.4f} ',                  
-                  )
+                  f'Reconstruction Loss: {loss_reconstruction.item():.4f}, ')
                   
-            d_losses.append(loss_discriminator_gan.item())
-            g_losses.append(loss_generator_gan.item())
-            re_losses.append(loss_reconstruction.item())
-            total_losses.append(total_loss_generator_decoder.item())
-            
+            re_losses.append(loss_reconstruction.item())            
         batch_count += 1
         
 # Plot the losses
 plt.figure(figsize=(12, 6))
-plt.plot(d_losses, label='Discriminator Loss')
-plt.plot(g_losses, label='Generator Losses')
 plt.plot(re_losses, label='Reconstruction Loss')
 plt.title('VAE-GAN Training Losses')
 plt.xlabel('Iteration')
@@ -267,7 +175,7 @@ plt.show()
 with torch.no_grad():
     num_samples_to_generate = 5   # Number of samples you want to generate 
     z_random_sampled = torch.randn(num_samples_to_generate, 16) 
-    generated_signals_sampled = generator(z_random_sampled)   # Shape: (num_samples_to_generate ,360 ,2 )
+    generated_signals_sampled = decoder(z_random_sampled)   # Shape: (num_samples_to_generate ,360 ,2 )
 
 # Plotting generated signals
 

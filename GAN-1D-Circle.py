@@ -180,8 +180,7 @@ for epoch in range(num_epochs):
                   f'Discriminator Loss: {loss_discriminator_gan.item():.4f}, '
                   f'Generator Loss: {loss_generator_gan.item():.4f} ')
             d_losses.append(loss_discriminator_gan.item())
-            g_losses.append(loss_generator_gan.item())
-            #re_losses.append(loss_reconstruction.item())
+            g_losses.append(loss_generator_gan.item())            
             
         batch_count += 1
         
