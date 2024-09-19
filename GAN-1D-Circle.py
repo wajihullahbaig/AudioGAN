@@ -77,13 +77,15 @@ import torch
 class Generator(nn.Module):
     def __init__(self, latent_dim, output_size):
         super(Generator, self).__init__()
-        self.fc = nn.Linear(latent_dim, 64)  # Increase hidden size for better learning
+        self.fc1 = nn.Linear(latent_dim, 128)  # Increase hidden size for better learning
+        self.fc2 = nn.Linear(128, 64)  # Increase hidden size for better learning
         self.lstm1 = nn.LSTM(64, 32, batch_first=True)
         self.lstm2 = nn.LSTM(32, output_size, batch_first=True)        
         
 
     def forward(self, z):
-        z = self.fc(z).unsqueeze(1).repeat(1, 360, 1)  # Repeat for sequence length
+        z = self.fc1(z).unsqueeze(1).repeat(1, 360, 1)  # Repeat for sequence length
+        z = self.fc2(z)
         z, _ = self.lstm1(z)
         z, _ = self.lstm2(z)
         return torch.tanh(z)  # Shape: (batch_size, 360, output_size)
@@ -107,7 +109,7 @@ class Discriminator(nn.Module):
 
 # Hyperparameters
 input_size = 2   # (x,y) coordinates
-latent_dim = 32
+latent_dim = 64
 output_size = input_size
 
 
