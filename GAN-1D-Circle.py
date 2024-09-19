@@ -49,7 +49,7 @@ import torch.optim as optim
 
 # Hyperparameters
 num_epochs = 1000
-batch_size = 64
+batch_size = 8
 learning_rate = 0.0001
 
 # Create a synthetic circular signal dataset
@@ -62,7 +62,7 @@ def generate_circular_signal(radius, num_samples):
 
 # Generate dataset
 radius = 1.0
-num_samples = 1000
+num_samples = 100
 data = generate_circular_signal(radius, num_samples)
 data_tensor = torch.tensor(data, dtype=torch.float32)
 
@@ -86,7 +86,7 @@ class Generator(nn.Module):
         z = self.fc(z).unsqueeze(1).repeat(1, 360, 1)  # Repeat for sequence length
         z, _ = self.lstm1(z)
         z, _ = self.lstm2(z)
-        return z  # Shape: (batch_size, 360, output_size)
+        return torch.tanh(z)  # Shape: (batch_size, 360, output_size)
 
 # Define the Discriminator for GAN
 class Discriminator(nn.Module):
@@ -107,16 +107,16 @@ class Discriminator(nn.Module):
 
 # Hyperparameters
 input_size = 2   # (x,y) coordinates
-latent_dim = 16
+latent_dim = 32
 output_size = input_size
 
 
 # Initialize models and optimizers
-generator = Generator(latent_dim=16, output_size=2)
+generator = Generator(latent_dim=latent_dim, output_size=2)
 discriminator = Discriminator(input_size=2)
 
-optimizer_generator = optim.SGD(generator.parameters(), lr=0.001)
-optimizer_discriminator = optim.SGD(discriminator.parameters(), lr=0.00001)
+optimizer_generator = optim.Adam(generator.parameters(), lr=0.0001)
+optimizer_discriminator = optim.Adam(discriminator.parameters(), lr=0.00001)
 
 # Loss functions
 criterion_reconstruction = nn.MSELoss()
@@ -136,7 +136,7 @@ for epoch in range(num_epochs):
 
         # Generate random latent vectors
         batch_size_current = real_signals.size(0)
-        z_random = torch.randn(batch_size_current, 16)  # Random noise for generator
+        z_random = torch.randn(batch_size_current, latent_dim)  # Random noise for generator
 
         # Generate fake signals
         fake_signals = generator(z_random)
@@ -197,7 +197,7 @@ plt.show()
 
 with torch.no_grad():
     num_samples_to_generate = 5   # Number of samples you want to generate 
-    z_random_sampled = torch.randn(num_samples_to_generate, 16) 
+    z_random_sampled = torch.randn(num_samples_to_generate, latent_dim) 
     generated_signals_sampled = generator(z_random_sampled)   # Shape: (num_samples_to_generate ,360 ,2 )
 
 # Plotting generated signals
