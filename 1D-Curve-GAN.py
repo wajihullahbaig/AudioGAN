@@ -52,6 +52,7 @@ def train_gan(epochs, batch_size):
         real_data = torch.cat((x_real, y_real), dim=1)
 
         noise = torch.randn(batch_size, 1)
+        noise = noise/torch.max(noise)
         y_fake = generator(noise)
 
         y_discriminator_real = torch.ones(batch_size, 1)
