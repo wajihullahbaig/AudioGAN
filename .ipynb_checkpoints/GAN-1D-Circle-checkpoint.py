@@ -48,7 +48,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 # Hyperparameters
-num_epochs = 1000
+num_epochs = 10000
 batch_size = 8
 learning_rate = 0.0001
 
@@ -62,7 +62,7 @@ def generate_circular_signal(radius, num_samples):
 
 # Generate dataset
 radius = 1.0
-num_samples = 10000
+num_samples = 1000
 data = generate_circular_signal(radius, num_samples)
 data_tensor = torch.tensor(data, dtype=torch.float32)
 
@@ -77,10 +77,10 @@ import torch
 class Generator(nn.Module):
     def __init__(self, latent_dim, output_size):
         super(Generator, self).__init__()
-        self.fc1 = nn.Linear(latent_dim, 64)  # Increase hidden size for better learning
-        self.fc2 = nn.Linear(64, 32)  # Increase hidden size for better learning
-        self.lstm1 = nn.LSTM(32, 16, batch_first=True)
-        self.lstm2 = nn.LSTM(16, output_size, batch_first=True)        
+        self.fc1 = nn.Linear(latent_dim, 128)  # Increase hidden size for better learning
+        self.fc2 = nn.Linear(128, 64)  # Increase hidden size for better learning
+        self.lstm1 = nn.LSTM(64, 32, batch_first=True)
+        self.lstm2 = nn.LSTM(32, output_size, batch_first=True)        
         
 
     def forward(self, z):
