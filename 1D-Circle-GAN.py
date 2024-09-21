@@ -15,7 +15,7 @@ np.random.seed(0)
 
 # Function to generate real data points based on the function y = mx^2 + c
 def generate_real_data(n):
-    theta = np.linspace(0, np.pi, n).astype(np.float32)
+    theta = np.linspace(0, 2*np.pi, n).astype(np.float32)
     radius = 1
     x = radius * np.cos(theta)
     y = radius * np.sin(theta)    
@@ -40,24 +40,23 @@ class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(3, 4),
+            nn.Linear(3, 28),
             nn.ReLU(),
-            nn.Linear(4, 3), 
-            nn.Tanh()             
+            nn.Linear(28, 3),             
         
         )
 
     def forward(self, x):
         x = self.model(x)
-        return  torch.sin(x)
+        return x
 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(3, 8),
+            nn.Linear(3, 48),
             nn.ReLU(),
-            nn.Linear(8, 2),  
+            nn.Linear(48, 2),  
             nn.Sigmoid()
         )
 
@@ -67,7 +66,7 @@ class Discriminator(nn.Module):
 def noise_generator(start,end,batch_size):
     z1 = np.random.randint(start, end, size=batch_size).astype(np.float32)/end
     z2 = np.random.randint(start, end, size=batch_size).astype(np.float32)/end
-    z3 = np.random.randint(start, end, size=batch_size).astype(np.float32)/end
+    z3 = 3.14*np.random.randint(start, end, size=batch_size).astype(np.float32)/end
     z = np.column_stack((z1,z2,z3))   
     z = torch.from_numpy(z)    
     return z
@@ -89,7 +88,7 @@ def train_gan(epochs, dataset_size, batch_size,n_featuresm):
             # Train discriminator
             #z = torch.randn(batch_size, 1) # 1 feature input. Becase we are generating noise using 1 feature.
                
-            z = noise_generator(-90,90,batch_size)
+            z = noise_generator(-180,180,batch_size)
             fake_data = generator(z)
             
             real_output = discriminator(real_data)
@@ -130,8 +129,8 @@ def train_gan(epochs, dataset_size, batch_size,n_featuresm):
             batch_count +=1     
         
 epochs = 50000
-batch_size = 64
-dataset_size = 180
+batch_size = 128
+dataset_size = 360
 
 generator = Generator()
 discriminator = Discriminator()
@@ -149,7 +148,7 @@ n_features = 3
 
 train_gan(epochs,dataset_size, batch_size,n_features)
 
-z = noise_generator(-90,90,batch_size)
+z = noise_generator(-180,180,batch_size)
 generator.eval()
 generated = generator(z).detach()
 
