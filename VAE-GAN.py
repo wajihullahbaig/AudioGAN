@@ -84,13 +84,15 @@ class AudioDataset(Dataset):
         waveform = waveform.astype(np.float32)
         waveform = (waveform - min(waveform)) / (max(waveform) - min(waveform)) * 2 - 1 
         waveform = waveform/np.max(waveform)
-        return torch.tensor(waveform,dtype=torch.float32)  # Convert to tensor
+        waveform = torch.tensor(waveform,dtype=torch.float32)  # Convert to tensor
+        waveform = torch.reshape(waveform, (sample_rate, 1))
+        return  waveform
 
     
 # Path to your .wav files directory
 wav_directory = 'C:/Users/Acer/work/git/AudioGAN/audioMNIST/'  # Change this to your directory with .wav files
 # Create the dataset and dataloader
-batch_size = 128
+batch_size = 4
 sample_rate = 48000 
 duration = 1 #seconds
 dataset = AudioDataset(wav_directory, sample_rate, duration)
@@ -112,9 +114,9 @@ for batch in dataloader:
     plt.show()
     break
 
-input_dim = sample_rate  # For 1 second of audio at 48 kHz
-hidden_dim = 512
-latent_dim = 128
+input_dim = 1  # For 1 second of audio at 48 kHz
+hidden_dim = 100
+latent_dim = 50
 
 vae_encoder = VAEEncoder(input_dim, hidden_dim, latent_dim)
 vae_decoder = VAEDecoder(latent_dim, hidden_dim, input_dim)
@@ -127,8 +129,8 @@ def reparameterize(mu, logvar):
     return mu + eps * std
     
 
-optimizer_vae = optim.Adam(list(vae_encoder.parameters()) + list(vae_decoder.parameters()), lr=0.00001)
-optimizer_disc = optim.Adam(discriminator.parameters(), lr=0.00002)
+optimizer_vae = optim.Adam(list(vae_encoder.parameters()) + list(vae_decoder.parameters()), lr=0.0001)
+optimizer_disc = optim.Adam(discriminator.parameters(), lr=0.0002)
 kl_losses  = []
 vae_gan_losses = []
 disc_losses = []
@@ -186,7 +188,7 @@ plt.show()
 
 vae_decoder.eval()
 with torch.no_grad():
-    z =  torch.randn(1, latent_dim)
+    z =  torch.randn(1, sample_rate,latent_dim)
     generated_audio = vae_decoder(z).detach().numpy().flatten()
 print(generated_audio.shape)
 # Plot the generated audio signal
