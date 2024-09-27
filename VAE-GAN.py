@@ -134,44 +134,50 @@ optimizer_disc = optim.Adam(discriminator.parameters(), lr=0.0002)
 kl_losses  = []
 vae_gan_losses = []
 disc_losses = []
-batch_count = 0
+
 for epoch in range(20):
     for real_data in dataloader:
         # real_data is already in the correct shape (batch_size, input_dim)
         # Train Discriminator
-        optimizer_disc.zero_grad()
-        mu, logvar = vae_encoder(real_data)
-        assert not torch.isnan(mu).any()
-        assert not torch.isnan(logvar).any()
+        start = 0
+        end = 48000
+        stride = 4800
+        for slice in range(start,end,stride):
+            optimizer_disc.zero_grad()
+            sliced = real_data[:,start:start+stride,:]
+            start += stride
+            mu, logvar = vae_encoder(sliced)
+            assert not torch.isnan(mu).any()
+            assert not torch.isnan(logvar).any()
+    
+            z = reparameterize(mu, logvar)
+            fake_data = vae_decoder(z)
+    
+            disc_real = discriminator(sliced)
+            disc_fake = discriminator(fake_data.detach())
+            loss_disc = -torch.mean(torch.log(disc_real) + torch.log(1 - disc_fake))
+            disc_losses.append(loss_disc.item())
+            loss_disc.backward()
+            # Gradient clipping for discriminator to avoid nans
+            torch.nn.utils.clip_grad_norm_(discriminator.parameters(), max_norm=1.0)
+            optimizer_disc.step()
+    
+            # Train VAE-GAN
+            optimizer_vae.zero_grad()
+            disc_fake = discriminator(fake_data)
+            loss_vae_gan = -torch.mean(torch.log(disc_fake))  # Adversarial loss
+            vae_gan_losses.append(loss_vae_gan.item())
+            kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())  # KL divergence
+            kl_losses.append(kl_loss.item())
+            loss_vae_total = loss_vae_gan + kl_loss
+            loss_vae_total.backward()
+            # Gradient clipping for encoder and decoder to avoid nans
+            torch.nn.utils.clip_grad_norm_(vae_encoder.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(vae_decoder.parameters(), max_norm=1.0)
+            optimizer_vae.step()
+            if start == 48000:
+                print(f'Slice: {slice}, Epoch: {epoch}, VAE Loss: {loss_vae_gan.item()}, Discriminator Loss: {loss_disc.item()}, KL Loss {kl_loss.item()}')
 
-        z = reparameterize(mu, logvar)
-        fake_data = vae_decoder(z)
-
-        disc_real = discriminator(real_data)
-        disc_fake = discriminator(fake_data.detach())
-        loss_disc = -torch.mean(torch.log(disc_real) + torch.log(1 - disc_fake))
-        disc_losses.append(loss_disc.item())
-        loss_disc.backward()
-        # Gradient clipping for discriminator to avoid nans
-        torch.nn.utils.clip_grad_norm_(discriminator.parameters(), max_norm=1.0)
-        optimizer_disc.step()
-
-        # Train VAE-GAN
-        optimizer_vae.zero_grad()
-        disc_fake = discriminator(fake_data)
-        loss_vae_gan = -torch.mean(torch.log(disc_fake))  # Adversarial loss
-        vae_gan_losses.append(loss_vae_gan.item())
-        kl_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())  # KL divergence
-        kl_losses.append(kl_loss.item())
-        loss_vae_total = loss_vae_gan + kl_loss
-        loss_vae_total.backward()
-        # Gradient clipping for encoder and decoder to avoid nans
-        torch.nn.utils.clip_grad_norm_(vae_encoder.parameters(), max_norm=1.0)
-        torch.nn.utils.clip_grad_norm_(vae_decoder.parameters(), max_norm=1.0)
-        optimizer_vae.step()
-        #if batch_count % 1 == 0:
-        print(f'Epoch: {epoch}, VAE Loss: {loss_vae_gan.item()}, Discriminator Loss: {loss_disc.item()}, KL Loss {kl_loss.item()}')
-        batch_count +=1
         
         
 # Plot the losses
