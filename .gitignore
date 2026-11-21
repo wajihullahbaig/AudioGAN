@@ -1,2 +1,7 @@
-audios
-audioMNIST
+audios/
+audioMNIST/
+data_cache/
+runs/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
