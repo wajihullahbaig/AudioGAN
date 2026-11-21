@@ -1,8 +1,8 @@
 """Generate spoken-digit WAVs from a trained PQMF-Snake-AudioGAN checkpoint.
 
 Usage:
-    python -m pqmf_snake_gan.generate --checkpoint runs/pqmf_snake/checkpoint_latest.pt --digits 0 1 2 3 4 5 6 7 8 9
-    python -m pqmf_snake_gan.generate --checkpoint runs/pqmf_snake/checkpoint_latest.pt --digits 7 7 7 --out-dir generated
+    python -m pqmf_snake_gan.generate --checkpoint runs/pqmf_fsdd_8k/checkpoint_latest.pt --digits 0 1 2 3 4 5 6 7 8 9
+    python -m pqmf_snake_gan.generate --checkpoint runs/pqmf_fsdd_8k/checkpoint_latest.pt --digits 7 7 7 --out-dir generated
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import os
 import numpy as np
 import torch
 
-from .models import PQMFGenerator
+from .models import PQMFGenerator, default_upsample_rates
 from .train import save_wav_pcm16, select_device
 
 
@@ -33,10 +33,19 @@ def main() -> None:
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     cfg = ckpt["config"]
 
+    sr = int(cfg.get("sample_rate", 16000))
+    subbands = int(cfg.get("subbands", 4))
+    audio_length = int(cfg.get("audio_length", 8192 if sr <= 8000 else 16384))
+    upsample_rates = tuple(
+        cfg.get("upsample_rates", default_upsample_rates(audio_length, init_length=16, subbands=subbands))
+    )
+
     gen = PQMFGenerator(
         z_dim=cfg["z_dim"],
         num_classes=cfg["num_classes"],
         base_channels=cfg["base_channels"],
+        subbands=subbands,
+        upsample_rates=upsample_rates,
     ).to(device)
 
     if not args.use_raw_gen and "ema" in ckpt:
@@ -54,7 +63,6 @@ def main() -> None:
     )
 
     waves = gen(z, labels).squeeze(1).cpu().numpy()
-    sr = int(cfg.get("sample_rate", 16000))
     os.makedirs(args.out_dir, exist_ok=True)
 
     for idx, (digit, w) in enumerate(zip(args.digits, waves)):

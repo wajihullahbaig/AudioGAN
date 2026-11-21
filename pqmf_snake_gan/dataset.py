@@ -189,9 +189,23 @@ class AudioMNISTDataset(Dataset):
         path_obj = Path(data_path)
         if path_obj.is_file() and path_obj.suffix.lower() == ".npz":
             npz = np.load(data_path)
-            self._cached_waveforms = npz["waveforms"]
+            cached_waves = npz["waveforms"]
             self._cached_labels = npz["labels"]
             self.has_labels = bool(npz["has_labels"].item())
+            cached_sr = int(npz["sample_rate"].item()) if "sample_rate" in npz else target_sr
+
+            # Automatically adapt cached .npz if target_sr or audio_length changed (e.g. fsdd_16k -> 8k)
+            if cached_sr != target_sr or cached_waves.shape[1] != audio_length:
+                adapted = np.zeros((cached_waves.shape[0], audio_length), dtype=np.int16)
+                for i in range(cached_waves.shape[0]):
+                    w = cached_waves[i].astype(np.float32) / 32767.0
+                    if cached_sr != target_sr:
+                        w = _resample_audio(w, orig_sr=cached_sr, target_sr=target_sr)
+                    w = _normalize_and_fit(w, target_length=audio_length, peak=0.95, random_pad=False)
+                    adapted[i] = np.clip(np.round(w * 32767.0), -32768, 32767).astype(np.int16)
+                self._cached_waveforms = adapted
+            else:
+                self._cached_waveforms = cached_waves
         elif path_obj.is_dir():
             self.files = _collect_audio_files(data_path)
             if not self.files:

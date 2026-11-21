@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "AudioGAN: Smoke Test",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "C:\\Users\\Precision\\anaconda3\\envs\\audio_signal_processing\\python.exe",
+            "module": "pqmf_snake_gan.train",
+            "args": [
+                "--smoke-test"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "AudioGAN: Full Train (FSDD 8 kHz)",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "C:\\Users\\Precision\\anaconda3\\envs\\audio_signal_processing\\python.exe",
+            "module": "pqmf_snake_gan.train",
+            "args": [
+                "--data-dir", "data_cache/fsdd_16k.npz",
+                "--out-dir", "runs/pqmf_fsdd_8k_v2",
+                "--sample-rate", "8000",
+                "--epochs", "350",
+                "--batch-size", "32",
+                "--base-channels", "256",
+                "--sample-every", "10",
+                "--save-every", "25"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
