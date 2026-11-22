@@ -396,16 +396,23 @@ def train(args: argparse.Namespace) -> None:
                         else torch.zeros((), device=device)
                     )
                     d_loss = d_adv + args.cls_weight_d * d_cls
+                if not torch.isfinite(d_loss):
+                    opt_d.zero_grad(set_to_none=True)
+                    continue
                 scaler_d.scale(d_loss).backward()
 
                 # Lazy R1 gradient penalty in FP32 every r1_every steps
                 if args.r1_gamma > 0 and global_step % args.r1_every == 0:
                     r1_loss = 0.5 * args.r1_gamma * args.r1_every * compute_r1_penalty(disc, real, lbl)
-                    scaler_d.scale(r1_loss).backward()
+                    if torch.isfinite(r1_loss):
+                        scaler_d.scale(r1_loss).backward()
 
                 scaler_d.unscale_(opt_d)
-                torch.nn.utils.clip_grad_norm_(disc.parameters(), max_norm=10.0)
-                scaler_d.step(opt_d)
+                d_norm = torch.nn.utils.clip_grad_norm_(disc.parameters(), max_norm=10.0)
+                if torch.isfinite(d_norm):
+                    scaler_d.step(opt_d)
+                else:
+                    opt_d.zero_grad(set_to_none=True)
                 scaler_d.update()
             else:
                 with torch.no_grad():
@@ -425,14 +432,21 @@ def train(args: argparse.Namespace) -> None:
                     else torch.zeros((), device=device)
                 )
                 d_loss = d_adv + args.cls_weight_d * d_cls
+                if not torch.isfinite(d_loss):
+                    opt_d.zero_grad(set_to_none=True)
+                    continue
                 d_loss.backward()
 
                 if args.r1_gamma > 0 and global_step % args.r1_every == 0:
                     r1_loss = 0.5 * args.r1_gamma * args.r1_every * compute_r1_penalty(disc, real, lbl)
-                    r1_loss.backward()
+                    if torch.isfinite(r1_loss):
+                        r1_loss.backward()
 
-                torch.nn.utils.clip_grad_norm_(disc.parameters(), max_norm=10.0)
-                opt_d.step()
+                d_norm = torch.nn.utils.clip_grad_norm_(disc.parameters(), max_norm=10.0)
+                if torch.isfinite(d_norm):
+                    opt_d.step()
+                else:
+                    opt_d.zero_grad(set_to_none=True)
 
             # ------------------ 2. Update Generator ---------------------- #
             for p in disc.parameters():
@@ -440,6 +454,7 @@ def train(args: argparse.Namespace) -> None:
 
             z = torch.randn(bsz, args.z_dim, device=device)
             opt_g.zero_grad(set_to_none=True)
+            g_updated = False
             if use_amp and scaler_g is not None:
                 with torch.amp.autocast("cuda"):
                     fake = gen(z, lbl)
@@ -452,11 +467,18 @@ def train(args: argparse.Namespace) -> None:
                     )
                     dc_penalty = fake.mean(dim=-1).pow(2).mean()
                     g_loss = adv_loss + g_cls_scale * g_cls + 0.1 * dc_penalty
-                scaler_g.scale(g_loss).backward()
-                scaler_g.unscale_(opt_g)
-                torch.nn.utils.clip_grad_norm_(gen.parameters(), max_norm=10.0)
-                scaler_g.step(opt_g)
-                scaler_g.update()
+                if torch.isfinite(g_loss):
+                    scaler_g.scale(g_loss).backward()
+                    scaler_g.unscale_(opt_g)
+                    g_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), max_norm=10.0)
+                    if torch.isfinite(g_norm):
+                        scaler_g.step(opt_g)
+                        g_updated = True
+                    else:
+                        opt_g.zero_grad(set_to_none=True)
+                    scaler_g.update()
+                else:
+                    opt_g.zero_grad(set_to_none=True)
             else:
                 fake = gen(z, lbl)
                 d_fake_for_g = disc(diff_aug(fake), lbl)
@@ -468,14 +490,22 @@ def train(args: argparse.Namespace) -> None:
                 )
                 dc_penalty = fake.mean(dim=-1).pow(2).mean()
                 g_loss = adv_loss + g_cls_scale * g_cls + 0.1 * dc_penalty
-                g_loss.backward()
-                torch.nn.utils.clip_grad_norm_(gen.parameters(), max_norm=10.0)
-                opt_g.step()
+                if torch.isfinite(g_loss):
+                    g_loss.backward()
+                    g_norm = torch.nn.utils.clip_grad_norm_(gen.parameters(), max_norm=10.0)
+                    if torch.isfinite(g_norm):
+                        opt_g.step()
+                        g_updated = True
+                    else:
+                        opt_g.zero_grad(set_to_none=True)
+                else:
+                    opt_g.zero_grad(set_to_none=True)
 
             for p in disc.parameters():
                 p.requires_grad_(True)
 
-            ema.update(gen)
+            if g_updated:
+                ema.update(gen)
 
             d_loss_sum += float(d_loss.item())
             g_loss_sum += float(g_loss.item())
