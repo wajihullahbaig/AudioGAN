@@ -104,9 +104,20 @@ flowchart TD
 - **Anti-Collapse Conditioning & Stability** ([train.py](pqmf_snake_gan/train.py)):
   - Single-pass **Matching-Aware Hinge Loss** (penalizing `(real, wrong_digit)`), **Auxiliary Digit Cross-Entropy**, un-attenuated Projection Conditioning, lazy **R1 gradient penalty**, zero-padded `DiffAugment1d` (with polarity flip), AMP, and EMA generator weights.
 
-## Design Heritage & Building Blocks
+## How This Architecture Differs from Standard Audio GANs & Vocoders
 
-Most papers using PQMF, `SnakeBeta`, MPD, and MRD are **neural vocoders** (paired Mel-spectrogram → waveform reconstruction). This project adapts those modern vocoder inductive biases into a **single-stage, direct `(noise z, class label) → raw waveform` GAN** (zero spectrograms at inference, no separate vocoder stage):
+Most published speech/audio synthesis systems fall into one of two camps:
+
+1. **Classic single-stage waveform GANs (e.g., WaveGAN):** generate audio directly from `(z, class)`, but lack periodic activations, PQMF subband synthesis, multi-period/multi-resolution discriminators, and temporal-preserving conditioning — often leading to noisy/buzzy audio or class collapse.
+2. **Modern 2-stage Mel + Neural Vocoder pipelines (e.g., HiFi-GAN, BigVGAN, Multi-Band MelGAN):** achieve crisp audio using PQMF, `SnakeBeta`, MRF, MPD, and MRD, **but only as paired Mel-spectrogram → waveform vocoders** trained with strong L1 spectrogram reconstruction losses and a separate first-stage acoustic model.
+
+**This repository bridges both worlds into a single-stage, spectrogram-free-at-inference conditional waveform GAN:**
+
+- **No spectrogram generator & no separate vocoder:** At inference, `PQMFGenerator` maps `(z, digit)` straight to 4 time-domain PQMF subbands and synthesizes raw audio directly via a frozen cosine-modulated filterbank (zero FFTs at inference).
+- **Vocoder inductive biases adapted for noise-to-audio synthesis:** Combines Multi-Band MelGAN's PQMF bank, HiFi-GAN's MRF + MPD, and BigVGAN's `SnakeBeta` + training-only MRD — without needing any paired Mel reconstruction loss.
+- **Bespoke raw-waveform cGAN mechanisms:** Adds per-class learned temporal blueprints (`class_time_emb[y]`) + SAGAN-style 1D self-attention (`L = 16, 64`) for multi-syllable word planning, replaces high-rate FiLM normalization with silence-preserving multiplicative `StyleGate1d` (`0 * (1 + g) = 0`), and uses temporal-preserving word pooling inside a single-pass matching-aware + AC-GAN discriminator to prevent class collapse.
+
+## Design Heritage & Building Blocks
 
 | Block / Technique                                           | Origin / Inspiration                                                                                                                                                                                                              | How It Is Used & Adapted Here                                                                                                                                                                                                            |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -126,7 +137,8 @@ Most papers using PQMF, `SnakeBeta`, MPD, and MRD are **neural vocoders** (paire
 python -m pqmf_snake_gan.train --smoke-test
 
 # 2a. Train on FSDD (native 8 kHz, 3k clips; auto-adapts fsdd_16k.npz to 8 kHz / 8,192 samples)
-python -m pqmf_snake_gan.train --data-dir data_cache/fsdd_16k.npz --out-dir runs/pqmf_fsdd_8k_v2 --sample-rate 8000 --epochs 350 --batch-size 32
+#     Peak quality on FSDD lands around epochs 220–230 before late-GAN degradation (~250+)
+python -m pqmf_snake_gan.train --data-dir data_cache/fsdd_16k.npz --out-dir runs/pqmf_fsdd_8k_v2 --sample-rate 8000 --epochs 230 --batch-size 32
 
 # 2b. Or train on full AudioMNIST (30k clips @ 16 kHz / 16,384 samples)
 python -m pqmf_snake_gan.train --data-dir audioMNIST --build-cache data_cache/audiomnist_16k.npz --out-dir runs/pqmf_audiomnist_16k --sample-rate 16000 --epochs 100 --batch-size 64

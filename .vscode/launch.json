@@ -24,7 +24,7 @@
                 "--data-dir", "data_cache/fsdd_16k.npz",
                 "--out-dir", "runs/pqmf_fsdd_8k_v2",
                 "--sample-rate", "8000",
-                "--epochs", "350",
+                "--epochs", "230",
                 "--batch-size", "32",
                 "--base-channels", "256",
                 "--sample-every", "10",

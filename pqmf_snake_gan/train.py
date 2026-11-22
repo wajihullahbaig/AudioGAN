@@ -5,7 +5,7 @@ Usage:
     python -m pqmf_snake_gan.train --smoke-test
 
     # 2. Train on FSDD (native 8 kHz, 3k clips -> auto-adapts fsdd_16k.npz to 8 kHz / 8192 samples):
-    python -m pqmf_snake_gan.train --data-dir data_cache/fsdd_16k.npz --out-dir runs/pqmf_fsdd_8k --sample-rate 8000 --epochs 350 --batch-size 32
+    python -m pqmf_snake_gan.train --data-dir data_cache/fsdd_16k.npz --out-dir runs/pqmf_fsdd_8k --sample-rate 8000 --epochs 230 --batch-size 32
 
     # 3. Train on full AudioMNIST (30k clips @ 16 kHz / 16384 samples):
     python -m pqmf_snake_gan.train --data-dir audioMNIST --build-cache data_cache/audiomnist_16k.npz --epochs 100 --batch-size 64
@@ -539,7 +539,7 @@ def build_argparser() -> argparse.ArgumentParser:
     p.add_argument("--data-dir", type=str, default="audioMNIST", help="Folder of .wav/.npy or path to .npz cache")
     p.add_argument("--build-cache", type=str, default="", help="Optional path to save a preprocessed .npz cache")
     p.add_argument("--out-dir", type=str, default="runs/pqmf_snake_v2", help="Output directory for checkpoints & WAVs")
-    p.add_argument("--epochs", type=int, default=300)
+    p.add_argument("--epochs", type=int, default=230)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--z-dim", type=int, default=128)
     p.add_argument("--base-channels", type=int, default=256, help="Use 128-192 for CPU / low-VRAM GPUs")
